@@ -1,4 +1,15 @@
+import { Meiosis } from "../common/types";
 import commonSetup from "../common";
+
+type NestedPatchFn = (value: any) => any;
+
+interface NestedPatchObject {
+  [prop: string]: any;
+}
+
+type NestedPatch = NestedPatchFn | NestedPatchObject;
+
+export type Patch = NestedPatch | NestedPatch[];
 
 /**
  * Helper to setup the Meiosis pattern with [Mergerino](https://github.com/fuzetsu/mergerino).
@@ -16,10 +27,10 @@ import commonSetup from "../common";
  * @returns {Object} - `{ update, states, actions }`, where `update` and `states` are streams,
  * and `actions` are the created actions.
  */
-export default ({ stream, merge, app }) =>
+export default <S>({ stream, merge, app }): Meiosis<S, Patch> =>
   commonSetup({
     stream,
     accumulator: merge,
-    combine: patches => patches,
+    combine: (patches: Patch[]) => (patches as unknown) as Patch,
     app
   });

@@ -1,3 +1,5 @@
+import { StreamLib, Stream, MapFunction, Scan, Accumulator } from "../common/types";
+
 /**
  * A simple stream.
  *
@@ -14,20 +16,23 @@
  * @param {*} [initial] - the stream's initial value.
  * @returns {simpleStream} the created stream.
  */
-export const stream = initial => {
-  const mapFunctions = [];
-  let latestValue = initial;
-  const createdStream = value => {
+export const stream = <T>(initial?: T): Stream<T> => {
+  const mapFunctions: Function[] = [];
+  let latestValue: T | undefined = initial;
+
+  const createdStream = (value?: T): T | undefined => {
     if (value !== undefined) {
       latestValue = value;
       for (const i in mapFunctions) {
         mapFunctions[i](value);
       }
     }
+
     return latestValue;
   };
-  createdStream.map = mapFunction => {
-    const newStream = stream(latestValue !== undefined ? mapFunction(latestValue) : undefined);
+
+  createdStream.map = <U>(mapFunction: MapFunction<T, U>): Stream<U> => {
+    const newStream = stream<U>(latestValue !== undefined ? mapFunction(latestValue) : undefined);
 
     mapFunctions.push(value => {
       newStream(mapFunction(value));
@@ -35,6 +40,7 @@ export const stream = initial => {
 
     return newStream;
   };
+
   return createdStream;
 };
 
@@ -52,8 +58,12 @@ export const stream = initial => {
  * accumulator function.
  * @returns {simpleStream} the created stream.
  */
-export const scan = (accumulator, initial, sourceStream) => {
-  const newStream = stream(initial);
+export const scan: Scan = <T, U>(
+  accumulator: Accumulator<T, U>,
+  initial: U,
+  sourceStream: Stream<T>
+): Stream<U> => {
+  const newStream = stream<U>(initial);
   let accumulated = initial;
 
   sourceStream.map(value => {
@@ -64,7 +74,9 @@ export const scan = (accumulator, initial, sourceStream) => {
   return newStream;
 };
 
-export default {
+const streamLib: StreamLib = {
   stream,
   scan
 };
+
+export default streamLib;

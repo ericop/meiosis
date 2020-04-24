@@ -1,6 +1,10 @@
+import { Meiosis } from "../common/types";
 import commonSetup from "../common";
 
-const pipe = fns => args => fns.reduce((arg, fn) => fn(arg), args);
+export type PatchFunction<S> = (state: S) => S;
+
+const pipe = <S>(fns: PatchFunction<S>[]): PatchFunction<S> => (state: S): S =>
+  fns.reduce((arg, fn) => fn(arg), state);
 
 /**
  * Helper to setup the Meiosis pattern with function patches.
@@ -17,5 +21,10 @@ const pipe = fns => args => fns.reduce((arg, fn) => fn(arg), args);
  * @returns {Object} - `{ update, states, actions }`, where `update` and `states` are streams,
  * and `actions` are the created actions.
  */
-export default ({ stream, app }) =>
-  commonSetup({ stream, accumulator: (x, f) => f(x), combine: pipe, app });
+export default <S>({ stream, app }): Meiosis<S, PatchFunction<S>> =>
+  commonSetup({
+    stream,
+    accumulator: (x: S, fn: PatchFunction<S>) => fn(x),
+    combine: pipe,
+    app
+  });

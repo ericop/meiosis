@@ -1,17 +1,4 @@
-/**
- * Application object.
- *
- * @typedef {Object} app
- * @property {Object} [initial={}] - an object that represents the initial state.
- * If not specified, the initial state will be `{}`.
- * @property {Function} [Actions=()=>({})] - a function that creates actions, of the form
- * `update => actions`.
- * @property {Array<Function>} [services=[]] - an array of service functions, each of which
- * should be `({ state, previousState, patch }) => patch?`.
- * @property {Array<Function>} [effects=[]] - an array of effect functions, each of which
- * should be `({ state, previousState, patch, update, actions }) => void`, with the function
- * optionally calling `update` and/or `actions`.
- */
+import { ActionsObject, Meiosis, MeiosisParams, ServiceParams, Stream } from "./types";
 
 /**
  * Stream library. This works with `meiosis.simpleStream`, `flyd`, `m.stream`, or anything for
@@ -52,7 +39,12 @@
  * @returns {Object} - `{ update, states, actions }`, where `update` and `states` are streams, and
  * `actions` are the created actions.
  */
-export default ({ stream, accumulator, combine, app }) => {
+export default function <S, P>({
+  stream,
+  accumulator,
+  combine,
+  app: { initial, Actions = (): ActionsObject => ({}), services = [], effects = [] }
+}: MeiosisParams<S, P>): Meiosis<S, P> {
   if (!stream) {
     throw new Error("No stream library was specified.");
   }
@@ -63,30 +55,25 @@ export default ({ stream, accumulator, combine, app }) => {
     throw new Error("No combine function was specified.");
   }
 
-  app = app || {};
-  let { initial, Actions, services, effects } = app;
-  initial = initial || {};
-  services = services || [];
-  effects = effects || [];
-
-  const singlePatch = patch => (Array.isArray(patch) ? combine(patch) : patch);
-  const accumulatorFn = (state, patch) => (patch ? accumulator(state, singlePatch(patch)) : state);
+  const singlePatch = (patch: P): P => (Array.isArray(patch) ? combine(patch) : patch);
+  const accumulatorFn = (state: S, patch?: P): S =>
+    patch != null ? accumulator(state, singlePatch(patch)) : state;
 
   const createStream = typeof stream === "function" ? stream : stream.stream;
   const scan = stream.scan;
 
-  const update = createStream();
-  const actions = (Actions || (() => ({})))(update);
-  const states = createStream();
+  const update: Stream<P> = createStream();
+  const actions = Actions(update);
+  const states: Stream<S> = createStream();
 
   // context is { state, patch, previousState }
   // state is optionally updated by service patches; patch and previousState never change.
-  const runServices = context => {
+  const runServices = (context: ServiceParams<S, P>): ServiceParams<S, P> => {
     const updatedContext = context;
 
     for (let i = 0; i < services.length; i++) {
       // a service should (optionally) return a patch
-      const servicePatch = services[i](updatedContext);
+      const servicePatch: P | undefined = services[i](updatedContext);
       updatedContext.state = accumulatorFn(updatedContext.state, servicePatch);
     }
     return updatedContext;
@@ -99,7 +86,7 @@ export default ({ stream, accumulator, combine, app }) => {
         state: accumulatorFn(context.state, patch),
         patch
       }),
-    runServices({ state: initial, previousState: {} }),
+    runServices({ state: initial }),
     update
   );
 
@@ -119,4 +106,4 @@ export default ({ stream, accumulator, combine, app }) => {
     });
 
   return { update, states, actions };
-};
+}

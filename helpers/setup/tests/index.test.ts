@@ -1,32 +1,41 @@
-const test = require("tape");
+import flyd from "flyd";
+import Stream from "mithril/stream";
+import merge from "mergerino";
+// import * as R from "ramda";
+// import { produce } from "immer";
+import meiosis from "../src";
 
-const flyd = require("flyd");
-const Stream = require("mithril/stream");
-const merge = require("mergerino");
-const R = require("ramda");
-const { produce } = require("immer");
-const compose = fns => args => fns.reduceRight((arg, fn) => fn(arg), args);
+// const compose = fns => args => fns.reduceRight((arg, fn) => fn(arg), args);
 
-const meiosis = require("../dist/meiosis-setup");
+const mergerinoCases = [
+  ["Meiosis simple-stream", meiosis.simpleStream],
+  ["flyd", flyd],
+  ["mithril-stream", Stream]
+];
 
-const mergerinoTest = (merge, streamLib, label) => {
-  test("mergerino setup", t => {
-    t.test(label + " / minimal", t => {
-      const { update, states } = meiosis.mergerino.setup({ stream: streamLib, merge });
-      t.deepEqual(states(), {}, "initial state");
+describe("mergerino setup", () => {
+  describe.each(mergerinoCases)("%p", (_label, streamLib) => {
+    describe("minimal", () => {
+      const { update, states } = meiosis.mergerino.setup({
+        stream: streamLib,
+        merge,
+        app: { initial: {} }
+      });
 
-      update({ duck: { sound: "quack" } });
-      update({ duck: { color: "yellow" } });
+      test("initial state and resulting state", () => {
+        expect(states()).toEqual({});
 
-      t.deepEqual(states(), { duck: { sound: "quack", color: "yellow" } }, "resulting state");
+        update({ duck: { sound: "quack" } });
+        update({ duck: { color: "yellow" } });
 
-      t.end();
+        expect(states()).toEqual({ duck: { sound: "quack", color: "yellow" } });
+      });
     });
 
-    t.test(label + " / initial state", t => {
+    describe("initial service", () => {
       const services = [
-        ({ previousState }) => {
-          t.deepEqual(previousState, {});
+        ({ previousState }): void => {
+          expect(previousState).toBeUndefined();
         }
       ];
 
@@ -36,37 +45,48 @@ const mergerinoTest = (merge, streamLib, label) => {
         app: { initial: { duck: "yellow" }, services }
       });
 
-      t.deepEqual(states(), { duck: "yellow" }, "initial state");
-      t.end();
+      test("initial and previous state", () => {
+        expect(states()).toEqual({ duck: "yellow" });
+      });
     });
 
-    t.test(label + " / initial state promise", t => {
-      const Initial = () =>
+    describe("initial state promise", () => {
+      const Initial = (): Promise<any> =>
         new Promise(resolve => {
           setTimeout(() => resolve({ duck: "yellow" }), 10);
         });
 
-      const createApp = () => Initial().then(initial => ({ initial }));
+      const createApp = (): Promise<any> => Initial().then(initial => ({ initial }));
 
-      createApp().then(app => {
+      test("initial state", async () => {
+        const app = await createApp();
         const { states } = meiosis.mergerino.setup({ stream: streamLib, merge, app });
-
-        t.deepEqual(states(), { duck: "yellow" }, "initial state");
-        t.end();
+        expect(states()).toEqual({ duck: "yellow" });
       });
     });
 
-    t.test(label + " / services", t => {
+    describe("services", () => {
+      interface State {
+        count: number;
+        combined?: boolean;
+        sequence?: boolean;
+        sequenced?: boolean;
+        received?: boolean;
+      }
+
       const services = [
-        ({ state }) => (state.increment > 0 && state.increment < 10 ? { count: x => x + 1 } : null),
-        ({ state }) =>
+        ({ state }): any =>
+          state.increment > 0 && state.increment < 10
+            ? { count: (x: number): number => x + 1 }
+            : null,
+        ({ state }): any =>
           state.increment <= 0 || state.increment >= 10 ? { increment: undefined } : null,
-        ({ state }) => (state.invalid ? [{ invalid: undefined }, { combined: true }] : null),
-        ({ state }) => (state.sequence ? { sequenced: true } : null),
-        ({ state }) => (state.sequenced ? { received: true } : null)
+        ({ state }): any => (state.invalid ? [{ invalid: undefined }, { combined: true }] : null),
+        ({ state }): any => (state.sequence ? { sequenced: true } : null),
+        ({ state }): any => (state.sequenced ? { received: true } : null)
       ];
 
-      const { update, states } = meiosis.mergerino.setup({
+      const { update, states } = meiosis.mergerino.setup<State>({
         stream: streamLib,
         merge,
         app: { initial: { count: 0 }, services }
@@ -77,17 +97,23 @@ const mergerinoTest = (merge, streamLib, label) => {
       update({ invalid: true });
       update({ sequence: true });
 
-      t.deepEqual(
-        states(),
-        { count: 1, combined: true, sequence: true, sequenced: true, received: true },
-        "resulting state"
-      );
-      t.end();
+      test("resulting state", () => {
+        expect(states()).toEqual({
+          count: 1,
+          combined: true,
+          sequence: true,
+          sequenced: true,
+          received: true
+        });
+      });
     });
 
-    t.test(label + " / services run on initial state", t => {
+    describe("services run on initial state", () => {
       const services = [
-        ({ state }) => (state.increment > 0 && state.increment < 10 ? { count: x => x + 1 } : null)
+        ({ state }): any =>
+          state.increment > 0 && state.increment < 10
+            ? { count: (x: number): number => x + 1 }
+            : null
       ];
 
       const { states } = meiosis.mergerino.setup({
@@ -99,11 +125,13 @@ const mergerinoTest = (merge, streamLib, label) => {
       let ticks = 0;
       states.map(() => ticks++);
 
-      t.deepEqual(states(), { count: 1, increment: 1 }, "resulting state");
-      t.equal(ticks, 1, "number of ticks");
-      t.end();
+      test("resulting state and number of ticks", () => {
+        expect(states()).toEqual({ count: 1, increment: 1 });
+        expect(ticks).toEqual(1);
+      });
     });
 
+    /*
     t.test(label + " / effects and actions", t => {
       const Actions = update => ({
         increment: amount => update({ count: x => x + amount })
@@ -611,13 +639,11 @@ const mergerinoTest = (merge, streamLib, label) => {
         }
       });
     });
+    */
   });
-};
+});
 
-mergerinoTest(merge, meiosis.simpleStream, "mergerino + Meiosis simple-stream");
-mergerinoTest(merge, flyd, "mergerino + flyd");
-mergerinoTest(merge, Stream, "mergerino + mithril-stream");
-
+/*
 const functionPatchTest = (streamLib, label) => {
   label = "functionPatch + " + label;
 
@@ -2041,10 +2067,13 @@ const commonTest = (streamLib, label) => {
 commonTest(meiosis.simpleStream, "common + Meiosis simple-stream");
 commonTest(flyd, "common + flyd");
 commonTest(Stream, "common + mithril-stream");
+*/
 
-test("simpleStream", t => {
+describe("simpleStream", () => {
   const s1 = meiosis.simpleStream.stream();
   const result = s1(42);
-  t.equal(result, 42, "emitting value onto stream should return the value");
-  t.end();
+
+  test("emitting value onto stream should return the value", () => {
+    expect(result).toEqual(42);
+  });
 });

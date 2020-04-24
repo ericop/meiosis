@@ -2,17 +2,22 @@ module.exports = {
   "env": {
     "browser": true,
     "commonjs": true,
-    "es6": true
+    "es6": true,
+    "jest/globals": true
   },
   "extends": [
     "eslint:recommended",
     "plugin:react/recommended",
-    "prettier"
+    "plugin:@typescript-eslint/recommended",
+    "prettier",
+    "prettier/@typescript-eslint"
   ],
+  "parser": "@typescript-eslint/parser",
   "parserOptions": {
     "ecmaFeatures": {
       "jsx": true
     },
+    "ecmaVersion": 2018,
     "sourceType": "module"
   },
   "rules": {
@@ -43,9 +48,22 @@ module.exports = {
     ],
     "react/prop-types": [
       0
+    ],
+    "@typescript-eslint/no-explicit-any": "off",
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }
     ]
+    /*
+    "indent": "off",
+    "@typescript-eslint/indent": ["error", 2]
+    */
   },
   "plugins": [
+    "jest",
     "prettier",
     "react"
   ],
